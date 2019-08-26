@@ -13,6 +13,8 @@ import datetime
 import logging
 from lib.prettytable import PrettyTable
 import base64
+from Crypto.Cipher import AES
+
 
 if sys.version_info.major != 3:
     logging.error("请在python3环境下运行本程序")
@@ -25,6 +27,7 @@ except ModuleNotFoundError as e:
     sys.exit(-1)
 
 from browser import Browser
+from idcard_information import GetInformation
 
 try:
     import yaml
@@ -66,7 +69,13 @@ class Config(object):
                 self.medicare_card_id = data["medicareCardId"]
                 self.reimbursement_type = data["reimbursementType"]
                 self.doctorName = data["doctorName"]
+                self.children_name = data["childrenName"]
+                self.children_idno = data["childrenIdNo"]
+                self.cid_type = data["cidType"]
+                self.children = data["children"]
+                self.chooseBest = {"yes": True, "no": False}[data["chooseBest"]]
                 self.patient_id = int()
+                self.web_password = "hyde2019hyde2019"
                 try:
                     self.useIMessage = data["useIMessage"]
                 except KeyError:
@@ -75,6 +84,10 @@ class Config(object):
                     self.useQPython3 = data["useQPython3"]
                 except KeyError:
                     self.useQPython3 = "false"
+                try:
+                    self.children = data["children"]
+                except KeyError:
+                    self.children = "false"
                 #
                 logging.info("配置加载完成")
                 logging.debug("手机号:" + str(self.mobile_no))
@@ -84,6 +97,13 @@ class Config(object):
                 logging.debug("上午/下午:" + str(self.duty_code))
                 logging.debug("就诊人姓名:" + str(self.patient_name))
                 logging.debug("所选医生:" + str(self.doctorName))
+                logging.debug("是否挂儿童号:" + str(self.children))
+                if self.children == "true":
+                    logging.debug("患儿姓名:" + str(self.children_name))
+                    logging.debug("患儿证件号" + str(self.children_idno))
+                    logging.debug("患儿证件类型:" + str(self.cid_type))
+                    logging.debug("患儿性别:" + str(GetInformation(self.children_idno).get_sex()))
+                    logging.debug("患儿生日:" + str(GetInformation(self.children_idno).get_birthday()))
                 logging.debug("使用mac电脑接收验证码:" + str(self.useIMessage))
                 logging.debug("是否使用 QPython3 运行本脚本:" + str(self.useQPython3))
 
@@ -95,6 +115,53 @@ class Config(object):
             logging.error(repr(e))
             sys.exit()
 
+class AES_encrypt():
+
+    def __init__(self, key, mode='ecb', iv=''):
+
+        self.key = key#.decode("hex")
+        self.iv = iv
+        self.cryptor = None
+        if mode == "ecb":
+            self.cryptor = AES.new(str.encode(self.key), AES.MODE_ECB)
+        elif mode == 'cbc':
+            self.cryptor = AES.new(str.encode(self.key), AES.MODE_CBC, self.iv)
+        else:
+            return "Error Mode"
+
+
+
+    def __pad(self, text):
+        """填充方式，PKCS7"""
+        text_length = len(text)
+        amount_to_pad = AES.block_size - (text_length % AES.block_size)
+        # if amount_to_pad == 0:
+        #     amount_to_pad = AES.block_size
+        padd = chr(amount_to_pad)
+        return text + padd * amount_to_pad
+
+    def __unpad(self, text):
+        padd = ord(text[-1])
+        return text[:-padd]
+
+    def encrypt(self, text):
+        text = self.__pad(text)
+        self.ciphertext = self.cryptor.encrypt(str.encode(text))
+
+        return base64.b64encode(self.ciphertext)
+
+    def decrypt(self, text):
+
+        plain_text = self.cryptor.decrypt(base64.b64decode(text))
+        return self.__unpad(plain_text)
+
+    def get_byte(self,str_in):
+        str_out = ""
+
+        for i in range(0, len(str_in), 2):
+            str_out = str_out+"0x%s" % str_in[i:i+2]+","
+        str_out = str_out[:-1]
+        return str_out
 
 class Guahao(object):
     """
@@ -106,12 +173,12 @@ class Guahao(object):
         self.dutys = ""
         self.refresh_time = ''
 
-        self.login_url = "http://www.bjguahao.gov.cn/quicklogin.htm"
-        self.send_code_url = "http://www.bjguahao.gov.cn/v/sendorder.htm"
-        self.get_doctor_url = "http://www.bjguahao.gov.cn/dpt/partduty.htm"
-        self.confirm_url = "http://www.bjguahao.gov.cn/order/confirmV1.htm"
-        self.patient_id_url = "http://www.bjguahao.gov.cn/order/confirm/"
-        self.department_url = "http://www.bjguahao.gov.cn/dpt/appoint/"
+        self.login_url = "http://www.114yygh.com/web/login/doLogin.htm"
+        self.send_code_url = "http://www.114yygh.com/v/sendSmsCode.htm"
+        self.get_doctor_url = "http://www.114yygh.com/dpt/partduty.htm"
+        self.confirm_url = "http://www.114yygh.com/order/confirmV1.htm"
+        self.patient_id_url = "http://www.114yygh.com/order/confirm/"
+        self.department_url = "http://www.114yygh.com/dpt/appoint/"
 
         self.config = Config(config_path)                       # config对象
         if self.config.useIMessage == 'true':
@@ -132,7 +199,6 @@ class Guahao(object):
             self.qpython3 = None
 
     def is_login(self):
-
         logging.info("开始检查是否已经登录")
         hospital_id = self.config.hospital_id
         department_id = self.config.department_id
@@ -146,7 +212,7 @@ class Guahao(object):
             'dutyDate': time.strftime("%Y-%m-%d"),
             'isAjax': True
         }
-
+        
         response = self.browser.post(self.get_doctor_url, data=payload)
         try:
             data = json.loads(response.text)
@@ -173,22 +239,26 @@ class Guahao(object):
                 return True
         except Exception as e:
             pass
+          
+        aes = AES_encrypt(self.config.web_password, 'ecb', '')
 
         logging.info("cookies登录失败")
         logging.info("开始使用账号密码登陆")
         password = self.config.password
         mobile_no = self.config.mobile_no
         payload = {
-            'mobileNo': base64.b64encode(mobile_no.encode()),
-            'password': base64.b64encode(password.encode()),
-            'yzm': '',
-            'isAjax': True,
+            'mobileNo': aes.encrypt(mobile_no),
+            'password': aes.encrypt(password),
+            'loginType': 'PASSWORD_LOGIN',
+            'isAjax': 'true',
+
         }
         response = self.browser.post(self.login_url, data=payload)
         logging.debug("response data:" + response.text)
         try:
             data = json.loads(response.text)
-            if data["msg"] == "OK" and not data["hasError"] and data["code"] == 200:
+            if data['code'] == 0:#data["msg"] == "OK" and not data["hasError"] and data["code"] == 200:
+
                 # patch for qpython3
                 cookies_file = os.path.join(os.path.dirname(sys.argv[0]), "." + self.config.mobile_no + ".cookies")
                 self.browser.save_cookies(cookies_file)
@@ -218,7 +288,8 @@ class Guahao(object):
             'departmentId': department_id,
             'dutyCode': duty_code,
             'dutyDate': duty_date,
-            'isAjax': True
+            'isAjax': 'true'
+
         }
 
         response = self.browser.post(self.get_doctor_url, data=payload)
@@ -238,14 +309,23 @@ class Guahao(object):
 
         self.print_doctor()
 
-        for doctor in self.dutys[::-1]:
-            if doctor["doctorName"] == self.config.doctorName and doctor['remainAvailableNumber']:
-                logging.info("选中:" + str(doctor["doctorName"]))
-                return doctor
-        for doctor in self.dutys[::-1]:
+        if self.config.chooseBest:
+            doctors = self.dutys[::-1]
+        else:
+            doctors = self.dutys
+
+        # 按照配置优先级选择医生
+        for doctor_conf in self.config.doctorName:
+            for doctor in doctors:
+                if doctor["doctorName"] == doctor_conf and doctor['remainAvailableNumber']:
+                    return doctor
+
+        # 若没有合适的医生，默认返回最好的医生
+        for doctor in doctors:
             if doctor['remainAvailableNumber']:
                 logging.info("选中:" + str(doctor["doctorName"]))
                 return doctor
+
         return "NoDuty"
 
     def print_doctor(self):
@@ -271,21 +351,48 @@ class Guahao(object):
         medicare_card_id = self.config.medicare_card_id
         reimbursement_type = self.config.reimbursement_type
         doctor_id = str(doctor['doctorId'])
+        if self.config.children == 'true':
+            cid_type = self.config.cid_type
+            children_name = self.config.children_name
+            children_idno = self.config.children_idno
+            children_gender = GetInformation(children_idno).get_sex()
+            children_birthday = GetInformation(children_idno).get_birthday()
 
-        payload = {
-            'dutySourceId': duty_source_id,
-            'hospitalId': hospital_id,
-            'departmentId': department_id,
-            'doctorId': doctor_id,
-            'patientId': patient_id,
-            'hospitalCardId': hospital_card_id,
-            'medicareCardId': medicare_card_id,
-            "reimbursementType": reimbursement_type, # 报销类型
-            'smsVerifyCode': sms_code,          # TODO 获取验证码
-            'childrenBirthday': "",
-            'isAjax': True
-        }
+            payload = {
+                'phone':self.config.mobile_no,
+                'dutySourceId': duty_source_id,
+                'hospitalId': hospital_id,
+                'departmentId': department_id,
+                'doctorId': doctor_id,
+                'patientId': patient_id,
+                'hospitalCardId': hospital_card_id,
+                'medicareCardId': medicare_card_id,
+                "reimbursementType": reimbursement_type,  # 报销类型
+                'smsVerifyCode': sms_code,  # TODO 获取验证码
+                'childrenName': children_name,
+                'childrenIdNo': children_idno,
+                'cidType': cid_type,
+                'childrenGender': children_gender,
+                'childrenBirthday': children_birthday,
+                'isAjax': 'true'
+            }
+        else:
+            payload = {
+                'phone':self.config.mobile_no,
+                'dutySourceId': duty_source_id,
+                'hospitalId': hospital_id,
+                'departmentId': department_id,
+                'doctorId': doctor_id,
+                'patientId': patient_id,
+                'hospitalCardId': hospital_card_id,
+                'medicareCardId': medicare_card_id,
+                "reimbursementType": reimbursement_type, # 报销类型
+                'smsVerifyCode': sms_code,          # TODO 获取验证码
+                'childrenBirthday': "",
+                'isAjax': 'true'
+            }
         response = self.browser.post(self.confirm_url, data=payload)
+        logging.debug("payload:" + json.dumps(payload))
         logging.debug("response data:" + response.text)
 
         try:
@@ -324,14 +431,15 @@ class Guahao(object):
         addr = self.gen_doctor_url(doctor)
         response = self.browser.get(addr, "")
         ret = response.text
-        m = re.search(u'<input type=\\"radio\\" name=\\"hzr\\" value=\\"(?P<patientId>\d+)\\"[^>]*> ' + self.config.patient_name, ret)
+
+        m = re.search(u'name="(?P<patientId>\d+)" phone="\d*"><div class="imgShow"></div><div class="infoRight"><p class="name">*.' +self.config.patient_name[1:], ret)
         if m is None:
             sys.exit("获取患者id失败")
         else:
             self.config.patient_id = m.group('patientId')
             logging.info("病人ID:" + self.config.patient_id)
 
-            return self.config.patient_id
+        return self.config.patient_id
 
     def gen_department_url(self):
         return self.department_url + str(self.config.hospital_id) + \
@@ -342,7 +450,6 @@ class Guahao(object):
         addr = self.gen_department_url()
         response = self.browser.get(addr, "")
         ret = response.text
-
         # 放号时间
         m = re.search('<span>更新时间：</span>每日(?P<refreshTime>\d{1,2}:\d{2})更新', ret)
         refresh_time = m.group('refreshTime')
@@ -360,7 +467,6 @@ class Guahao(object):
         if self.config.date == 'latest':
             self.config.date = self.stop_date.strftime("%Y-%m-%d")
             logging.info("当前挂号日期变更为: " + self.config.date)
-
         # 生成放号时间和程序开始时间
         con_data_str = self.config.date + " " + refresh_time + ":00"
         self.start_time = datetime.datetime.strptime(con_data_str, '%Y-%m-%d %H:%M:%S') + datetime.timedelta(days= - int(appoint_day))
@@ -368,7 +474,12 @@ class Guahao(object):
 
     def get_sms_verify_code(self):
         """获取短信验证码"""
-        response = self.browser.post(self.send_code_url, "")
+        payload = {
+        "smsType":4,
+        "mobileNo":self.config.mobile_no,
+        "isAjax":"true"
+        }
+        response = self.browser.post(self.send_code_url, data=payload)
         data = json.loads(response.text)
         logging.debug(response.text)
         if data["msg"] == "OK." and data["code"] == 200:
@@ -429,6 +540,7 @@ class Guahao(object):
                 time.sleep(1)
             else:
                 sms_code = self.get_sms_verify_code()               # 获取验证码
+                print('sms_code:',sms_code)
                 if sms_code is None:
                     time.sleep(1)
 

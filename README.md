@@ -90,7 +90,30 @@ patientName: "曹操"
 # doctorName: 医生姓名
 # 不填写的话默认选最好的医生
 # 填写后若这个医生没有号，会自动选其余号中最好的医生
-doctorName: "华佗"
+doctorName:
+  - "扁鹊"
+  - "华佗"
+  - "杨永信"
+
+#挂号类型是否为儿童号
+children: "false"
+
+#患儿名字 如果儿童挂号必须填写
+childrenName: ""
+
+#患儿证件号 如果儿童挂号必须填写
+childrenIdNo: ""
+
+#患儿证件
+#1:身份证
+#2:其他
+cidType: "1"
+
+# chooseBest: 选择模式
+# 不填写的默认从最好的医生开始选择
+# 可选项为"yes" 或者 "no"
+chooseBest: "yes"
+
 
 # DebugLevel: 调试等级
 # 支持的调试等级有 debug/info/warning/error/critical
@@ -131,6 +154,8 @@ useQPython3: "false"
 
 感谢 [cuteapi](https://github.com/cuteapi) 添加 iphone mac 验证码自动获取的功能，抢号神器哦
 
+感谢 [cxl008](https://github.com/cxl008) 更新登录以及获取验证码代码
+
 若遗漏了您，请发邮件通知我 <791628659@qq.com>
 
 ## 协议
@@ -138,3 +163,10 @@ useQPython3: "false"
 ![](https://www.gnu.org/graphics/gplv3-127x51.png)
 
 bjguahao 基于 GPL-3.0 协议进行分发和使用，更多信息参见协议文件。
+
+
+## Stargazers over time
+
+![Stargazers over time](https://starchart.cc/iBreaker/bjguahao.svg)
+
+
