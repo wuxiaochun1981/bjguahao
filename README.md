@@ -4,7 +4,9 @@
 ![](https://img.shields.io/badge/license-GPLv3-000000.svg)
 ![](https://img.shields.io/badge/made%20with-%3C3-red.svg)
 
-Copyright (C) 2017
+Copyright (C) 2017-2019
+
+**声明: 本软件只是方便大家挂号，请勿用于非法用途，否则后果自负**
 
 **目前稳定版已经发布，欢迎吐槽和试用**
 
@@ -95,6 +97,17 @@ doctorName:
   - "华佗"
   - "杨永信"
 
+# 指定医生
+# false:默认不指定
+# true:只挂指定医生的号
+assign: "false"
+
+#true:检索每天余票
+remaining: "false"
+
+#remaining=true时,默认检索工作日,周末:6,7
+week: "1,2,3,4,5"
+
 #挂号类型是否为儿童号
 children: "false"
 
@@ -134,7 +147,7 @@ useQPython3: "false"
 
 ## 挂号攻略
 
-[攻略](tips.md) 中有详细的挂号攻略, 感谢[@lily0101](https://github.com/lily0101)提供
+[攻略](tips.md) 中有详细的挂号攻略, 感谢[@lily0101](https://github.com/lily0101)、[@Ryan-Shang](https://github.com/Ryan-Shang)提供
 
 ## 调试
 
@@ -156,7 +169,9 @@ useQPython3: "false"
 
 感谢 [cxl008](https://github.com/cxl008) 更新登录以及获取验证码代码
 
-若遗漏了您，请发邮件通知我 <791628659@qq.com>
+感谢 [haoming06](https://github.com/haoming06) 支持挂指定大夫号、可监测每天余号,捡漏等功能 [pull#96](https://github.com/iBreaker/bjguahao/pull/96)、[pull#99](https://github.com/iBreaker/bjguahao/pull/99)
+
+若遗漏了您，请发邮件通知我 <791628659#qq.com>
 
 ## 协议
 
